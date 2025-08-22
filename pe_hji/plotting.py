@@ -58,7 +58,9 @@ def plot_pursuer_evader(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: 
 	plt.plot(traj_e[0,0], traj_e[0,1], 'ro', label='e start')
 	plt.plot(traj_p[-1,0], traj_p[-1,1], 'b^', label='p end')
 	plt.plot(traj_e[-1,0], traj_e[-1,1], 'r^', label='e end')
-	circle = plt.Circle((0,0), capture_radius, color='k', fill=False, linestyle='--', linewidth=1.0, label='capture')
+	# Center capture circle at pursuer's final position
+	cx, cy = float(traj_p[-1,0]), float(traj_p[-1,1])
+	circle = plt.Circle((cx, cy), capture_radius, color='k', fill=False, linestyle='--', linewidth=1.0, label='capture @ pursuer')
 	plt.gca().add_patch(circle)
 	plt.axis('equal')
 	plt.xlabel('x')
