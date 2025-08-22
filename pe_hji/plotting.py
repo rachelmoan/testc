@@ -47,3 +47,23 @@ def plot_trajectory(traj: np.ndarray, capture_radius: float, filename: str):
 	plt.tight_layout()
 	plt.savefig(filename)
 	plt.close()
+
+
+def plot_pursuer_evader(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: float, filename: str):
+	_ensure_dir(filename)
+	plt.figure(figsize=(5,4), dpi=120)
+	plt.plot(traj_p[:,0], traj_p[:,1], '-b', linewidth=2.0, label='pursuer')
+	plt.plot(traj_e[:,0], traj_e[:,1], '-r', linewidth=2.0, label='evader')
+	plt.plot(traj_p[0,0], traj_p[0,1], 'bo', label='p start')
+	plt.plot(traj_e[0,0], traj_e[0,1], 'ro', label='e start')
+	plt.plot(traj_p[-1,0], traj_p[-1,1], 'b^', label='p end')
+	plt.plot(traj_e[-1,0], traj_e[-1,1], 'r^', label='e end')
+	circle = plt.Circle((0,0), capture_radius, color='k', fill=False, linestyle='--', linewidth=1.0, label='capture')
+	plt.gca().add_patch(circle)
+	plt.axis('equal')
+	plt.xlabel('x')
+	plt.ylabel('y')
+	plt.legend(loc='best')
+	plt.tight_layout()
+	plt.savefig(filename)
+	plt.close()
