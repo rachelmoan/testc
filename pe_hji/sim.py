@@ -46,7 +46,7 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 	return V_interp
 
 
-def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None, policy_bias_evader_toward_position: float = 0.0, policy_bias_evader_away_from_r: float = 0.2) -> dict:
+def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
 	# Initialize relative state and absolute pursuer/evader states
 	state = state0.astype(float).copy()
 	if p0 is None:
@@ -74,9 +74,8 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 		# Build relative state used for feedback
 		state = np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)
 		_, grx, gry, gvx, gvy = _interp_gradients(V, grid, state)
-		# Feedback controls: pass relative position so evader can bias away from pursuer
-		r_x, r_y = state[0], state[1]
-		ap, ae = optimal_controls_from_gradient(gvx, gvy, a_p_max, a_e_max, r_x=r_x, r_y=r_y, bias_evader_away_from_r=policy_bias_evader_away_from_r)
+		# Feedback controls from gradient wrt velocity components
+		ap, ae = optimal_controls_from_gradient(gvx, gvy, a_p_max, a_e_max)
 		ap = ap.reshape(2)
 		ae = ae.reshape(2)
 		# Absolute dynamics for pursuer and evader

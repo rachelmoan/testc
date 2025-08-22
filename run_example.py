@@ -25,7 +25,7 @@ def main():
 
 	# Simulate closed-loop from a sample initial relative state [rx, ry, rvx, rvy]
 	state0 = np.array([3.0, 2.0, -0.5, 0.2])
-	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0, v_p_bounds=v_p_bounds, v_e_bounds=v_e_bounds, policy_bias_evader_away_from_r=0.5)
+	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0, v_p_bounds=v_p_bounds, v_e_bounds=v_e_bounds)
 
 	traj = sim["traj"]
 	print(f"Outcome: {sim['outcome']} at T={sim['T']:.2f}s, steps={sim['steps']}")
