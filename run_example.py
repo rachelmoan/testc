@@ -1,5 +1,5 @@
 import numpy as np
-from pe_hji import Grid4D, solve_hji_lax_friedrichs, simulate_closed_loop
+from pe_hji import Grid4D, solve_hji_lax_friedrichs, simulate_closed_loop, plot_value_slice, plot_trajectory
 
 
 def main():
@@ -25,6 +25,11 @@ def main():
 	print(f"Simulated {sim['steps']} steps. Final r = ({traj[-1,0]:.2f}, {traj[-1,1]:.2f}), |r| = {np.linalg.norm(traj[-1,:2]):.3f}")
 	print("First 3 states:")
 	print(traj[:3])
+
+	# Plots
+	plot_value_slice(V, grid, rvx0=0.0, rvy0=0.0, capture_radius=capture_radius, filename='/workspace/figs/value_slice_rvx0_rvy0.png')
+	plot_trajectory(traj, capture_radius=capture_radius, filename='/workspace/figs/trajectory_xy.png')
+	print('Saved figures to /workspace/figs/')
 
 
 if __name__ == "__main__":
