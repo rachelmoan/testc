@@ -46,17 +46,24 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 	return V_interp
 
 
-def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
-	# Initialize relative state and absolute pursuer/evader states
-	state = state0.astype(float).copy()
+def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray = None, a_p_max: float = 1.0, a_e_max: float = 1.0, dt: float = 0.05, steps: int = 1000, capture_radius: float = 0.5, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
+	# Initialize absolute pursuer/evader from inputs; derive relative
 	if p0 is None:
 		p_state = np.array([0.0, 0.0, 0.0, 0.0], dtype=float)
 	else:
 		p_state = np.array(p0, dtype=float).copy()
 	if e0 is None:
-		e_state = np.array([state[0], state[1], state[2], state[3]], dtype=float)
+		if state0 is None:
+			raise ValueError("Provide either (p0,e0) or relative state0")
+		# derive evader from relative state if only p0 and state0 provided
+		e_state = np.array([p_state[0] + state0[0], p_state[1] + state0[1], p_state[2] + state0[2], p_state[3] + state0[3]], dtype=float)
 	else:
 		e_state = np.array(e0, dtype=float).copy()
+	# If state0 not provided, compute from p/e
+	if state0 is None:
+		state = np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)
+	else:
+		state = np.array(state0, dtype=float).copy()
 	# Clip initial velocities if bounds provided
 	if v_p_bounds is not None:
 		p_state[2] = float(np.clip(p_state[2], v_p_bounds[0], v_p_bounds[1]))

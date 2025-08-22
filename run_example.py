@@ -23,14 +23,17 @@ def main():
 	# Solve HJI for a small horizon for speed
 	V = solve_hji_lax_friedrichs(grid, capture_radius=capture_radius, a_p_max=a_p_max, a_e_max=a_e_max, t_max=0.8, dt=0.05, verbose=True)
 
-	# Simulate closed-loop from a sample initial relative state [rx, ry, rvx, rvy]
-	state0 = np.array([3.0, 2.0, -0.5, 0.2])
-	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0, v_p_bounds=v_p_bounds, v_e_bounds=v_e_bounds)
+	# Absolute initial states: [x, y, vx, vy]
+	p0 = np.array([0.0, 0.0, 0.0, 0.0])
+	e0 = np.array([3.0, 2.0, -0.5, 0.2])
+
+	# Simulate closed-loop
+	sim = simulate_closed_loop(V, grid, p0=p0, e0=e0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0, v_p_bounds=v_p_bounds, v_e_bounds=v_e_bounds)
 
 	traj = sim["traj"]
 	print(f"Outcome: {sim['outcome']} at T={sim['T']:.2f}s, steps={sim['steps']}")
 	print(f"Final r = ({traj[-1,0]:.2f}, {traj[-1,1]:.2f}), |r| = {np.linalg.norm(traj[-1,:2]):.3f}")
-	print("First 3 states:")
+	print("First 3 states (relative):")
 	print(traj[:3])
 
 	# Plots
