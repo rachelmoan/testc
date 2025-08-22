@@ -1,5 +1,5 @@
 import numpy as np
-from pe_hji import Grid4D, solve_hji_lax_friedrichs, simulate_closed_loop, plot_value_slice, plot_trajectory, plot_pursuer_evader
+from pe_hji import Grid4D, solve_hji_lax_friedrichs, simulate_closed_loop, plot_value_slice, plot_trajectory, plot_pursuer_evader, save_step_frames
 
 
 def main():
@@ -37,7 +37,9 @@ def main():
 	plot_value_slice(V, grid, rvx0=0.0, rvy0=0.0, capture_radius=capture_radius, filename='/workspace/figs/value_slice_rvx0_rvy0.png')
 	plot_trajectory(traj, capture_radius=capture_radius, filename='/workspace/figs/trajectory_xy.png')
 	plot_pursuer_evader(sim["traj_p"], sim["traj_e"], capture_radius=capture_radius, filename='/workspace/figs/pursuer_evader_xy.png')
-	print('Saved figures to /workspace/figs/')
+	# Per-step frames
+	save_step_frames(sim["traj_p"], sim["traj_e"], capture_radius=capture_radius, out_dir='/workspace/figs/frames')
+	print('Saved figures to /workspace/figs/ and frames to /workspace/figs/frames')
 
 
 if __name__ == "__main__":

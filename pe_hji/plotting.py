@@ -69,3 +69,32 @@ def plot_pursuer_evader(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: 
 	plt.tight_layout()
 	plt.savefig(filename)
 	plt.close()
+
+
+def save_step_frames(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: float, out_dir: str):
+	os.makedirs(out_dir, exist_ok=True)
+	xmin = float(min(np.min(traj_p[:,0]), np.min(traj_e[:,0]))) - 0.5
+	xmax = float(max(np.max(traj_p[:,0]), np.max(traj_e[:,0]))) + 0.5
+	ymin = float(min(np.min(traj_p[:,1]), np.min(traj_e[:,1]))) - 0.5
+	ymax = float(max(np.max(traj_p[:,1]), np.max(traj_e[:,1]))) + 0.5
+	for k in range(1, len(traj_p)+1):
+		plt.figure(figsize=(5,4), dpi=120)
+		# traces so far
+		plt.plot(traj_p[:k,0], traj_p[:k,1], '-b', linewidth=1.5, label='pursuer path')
+		plt.plot(traj_e[:k,0], traj_e[:k,1], '-r', linewidth=1.5, label='evader path')
+		# current positions
+		plt.plot(traj_p[k-1,0], traj_p[k-1,1], 'bo', markersize=5)
+		plt.plot(traj_e[k-1,0], traj_e[k-1,1], 'ro', markersize=5)
+		# capture circle centered at pursuer current
+		circle = plt.Circle((traj_p[k-1,0], traj_p[k-1,1]), capture_radius, color='k', fill=False, linestyle='--', linewidth=1.0)
+		plt.gca().add_patch(circle)
+		plt.axis('equal')
+		plt.xlim([xmin, xmax])
+		plt.ylim([ymin, ymax])
+		plt.xlabel('x')
+		plt.ylabel('y')
+		plt.title(f'Step {k-1}')
+		plt.legend(loc='best')
+		plt.tight_layout()
+		plt.savefig(os.path.join(out_dir, f'frame_{k:04d}.png'))
+		plt.close()
