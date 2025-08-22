@@ -11,6 +11,10 @@ def _ensure_dir(path: str):
 
 
 def plot_value_slice(V: np.ndarray, grid: Grid4D, rvx0: float, rvy0: float, capture_radius: float, filename: str):
+	"""
+	Plot a slice of the value function over (r_x, r_y) at fixed (r_vx, r_vy).
+	Also overlays the capture circle centered at the origin in relative space.
+	"""
 	rx, ry, rvx, rvy = grid.axes
 	ivx = int(np.clip(np.searchsorted(rvx, rvx0), 0, len(rvx)-1))
 	ivy = int(np.clip(np.searchsorted(rvy, rvy0), 0, len(rvy)-1))
@@ -31,6 +35,10 @@ def plot_value_slice(V: np.ndarray, grid: Grid4D, rvx0: float, rvy0: float, capt
 
 
 def plot_trajectory(traj: np.ndarray, capture_radius: float, filename: str):
+	"""
+	Plot the relative position trajectory r(t) = e_pos - p_pos in (r_x, r_y).
+	Start and end points shown; capture circle at origin in relative space.
+	"""
 	_ensure_dir(filename)
 	plt.figure(figsize=(5,4), dpi=120)
 	rx = traj[:,0]
@@ -50,6 +58,10 @@ def plot_trajectory(traj: np.ndarray, capture_radius: float, filename: str):
 
 
 def plot_pursuer_evader(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: float, filename: str):
+	"""
+	Plot absolute trajectories of pursuer (blue) and evader (red) in (x,y).
+	A capture circle is drawn at the pursuer's final position for context.
+	"""
 	_ensure_dir(filename)
 	plt.figure(figsize=(5,4), dpi=120)
 	plt.plot(traj_p[:,0], traj_p[:,1], '-b', linewidth=2.0, label='pursuer')
@@ -72,6 +84,10 @@ def plot_pursuer_evader(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: 
 
 
 def save_step_frames(traj_p: np.ndarray, traj_e: np.ndarray, capture_radius: float, out_dir: str):
+	"""
+	Save per-step PNG frames of absolute trajectories, showing paths so far,
+	current positions, and a capture circle around the pursuer at each step.
+	"""
 	os.makedirs(out_dir, exist_ok=True)
 	xmin = float(min(np.min(traj_p[:,0]), np.min(traj_e[:,0]))) - 0.5
 	xmax = float(max(np.max(traj_p[:,0]), np.max(traj_e[:,0]))) + 0.5

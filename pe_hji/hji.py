@@ -4,6 +4,14 @@ from .dynamics import stackelberg_hamiltonian, bounds_hamiltonian_partials
 
 
 def _central_gradient(Dplus, Dminus):
+	"""
+	Form central gradient and LF dissipation terms from forward/backward diffs.
+
+	Given forward/backward first-order differences D+ and D-, compute
+	- central gradient ≈ 0.5 (D+ + D-)
+	- dissipation term for LF ≈ 0.5 (D+ - D-)
+	for each state dimension.
+	"""
 	# Returns central derivative for each axis and dissipation term (D+ - D-)/2
 	grads = []
 	diss = []
@@ -14,6 +22,26 @@ def _central_gradient(Dplus, Dminus):
 
 
 def solve_hji_lax_friedrichs(grid: Grid4D, capture_radius: float, a_p_max: float, a_e_max: float, t_max: float, dt: float, V0: np.ndarray = None, verbose: bool = True):
+	"""
+	Solve the HJI PDE for the 4D relative state using a Lax–Friedrichs scheme.
+
+	PDE (backward reachability-style dynamics):
+		V_t + H(x, ∇V) = 0,  where H from dynamics.stackelberg_hamiltonian
+
+	Discretization:
+	- Initialize V with signed distance to capture set (independent of v).
+	- At each step: compute forward/backward diffs, central gradient, LF dissipation.
+	- Update explicitly: V^{n+1} = V^n - dt * ( H(central ∇V) - Σ α_i * diss_i ),
+	  where α_i are dimension-wise bounds from bounds_hamiltonian_partials.
+
+	Parameters
+	- grid: Grid4D defining axes and spacing
+	- capture_radius: radius of capture set (position-space)
+	- a_p_max, a_e_max: acceleration bounds for pursuer and evader
+	- t_max, dt: integration horizon and timestep
+	- V0: optional initial value function to start from
+	- verbose: print min/max diagnostics periodically
+	"""
 	# Initialize value function with signed distance to target set over position components
 	if V0 is None:
 		V = grid.signed_distance_capture(capture_radius)

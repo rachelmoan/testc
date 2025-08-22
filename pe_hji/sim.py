@@ -47,6 +47,30 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 
 
 def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray = None, a_p_max: float = 1.0, a_e_max: float = 1.0, dt: float = 0.05, steps: int = 1000, capture_radius: float = 0.5, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
+	"""
+	Integrate the closed-loop relative/absolute dynamics using HJI feedback.
+
+	Inputs
+	- V: value function on the Grid4D state
+	- grid: Grid4D defining axes
+	- Either provide absolute initial states p0,e0 (shape 4 each) or relative state0
+	- a_p_max, a_e_max: control bounds for pursuer and evader
+	- dt, steps: integration timestep and maximum number of steps
+	- capture_radius: termination when ||r|| ≤ capture_radius
+	- t_max: optional maximum time horizon (overrides steps if reached)
+	- v_p_bounds, v_e_bounds: clip absolute velocities each step if provided
+
+	Method
+	- At each step, compute ∂V/∂v at the current relative state via local central differences
+	- Extract accelerations (pursuer minimizes, evader maximizes) from ∂V/∂v
+	- Advance absolute pursuer/evader using RK4, update relative state, check capture/time
+
+	Returns dict with
+	- traj_rel (alias traj): relative state history [N+1, 4]
+	- traj_p, traj_e: absolute pursuer/evader trajectories [N+1, 4]
+	- outcome: 'pursuer_captures' or 'evader_escapes'
+	- T: total time integrated, steps: number of integration steps performed
+	"""
 	# Initialize absolute pursuer/evader from inputs; derive relative
 	if p0 is None:
 		p_state = np.array([0.0, 0.0, 0.0, 0.0], dtype=float)
