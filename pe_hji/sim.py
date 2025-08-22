@@ -4,56 +4,22 @@ from .grid import Grid4D
 from .controls import optimal_controls_from_gradient
 
 
-def _interp_central_gradients(V: np.ndarray, grid: Grid4D, state: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
+def _interp_gradients(V: np.ndarray, grid: Grid4D, state: np.ndarray) -> Tuple[float, float, float, float, float]:
 	rx, ry, rvx, rvy = grid.axes
-	idxs = []
-	ws = []
 	coords = [state[0], state[1], state[2], state[3]]
-	for axis_vals, val in zip((rx, ry, rvx, rvy), coords):
-		i = int(np.clip(np.searchsorted(axis_vals, val) - 1, 0, len(axis_vals) - 2))
-		idxs.append(i)
-		w = (val - axis_vals[i]) / (axis_vals[i+1] - axis_vals[i])
-		ws.append(w)
-
-	# Trilinear-like 4D interpolation of V and gradients via finite differences
-	# Compute local central differences using neighbours along each axis
-	# Gather 2^4 corner values
-	corners = np.zeros(16)
-	for b in range(16):
-		ix = idxs[0] + ((b >> 0) & 1)
-		iy = idxs[1] + ((b >> 1) & 1)
-		ivx = idxs[2] + ((b >> 2) & 1)
-		ivy = idxs[3] + ((b >> 3) & 1)
-		corners[b] = V[ix, iy, ivx, ivy]
-
-	# Interpolate V
-	wx, wy, wvx, wvy = ws
-	V_interp = 0.0
-	for b in range(16):
-		cx = wx if (b & 1) else (1 - wx)
-		cy = wy if (b & 2) else (1 - wy)
-		cvx = wvx if (b & 4) else (1 - wvx)
-		cvy = wvy if (b & 8) else (1 - wvy)
-		V_interp += corners[b] * cx * cy * cvx * cvy
-
-	# Approximate gradient wrt velocity components by central difference of interpolated V values along v-axes
-	dvx = grid.dr[2]
-	dvy = grid.dr[3]
-	# Shift a small epsilon in index space
-	def shift_and_interp(axis_idx: int, sign: int):
-		coords_shift = coords.copy()
-		coords_shift[axis_idx] += sign * (grid.dr[axis_idx] * 0.5)
-		coords_shift[axis_idx] = float(np.clip(coords_shift[axis_idx], grid.axes[axis_idx][0], grid.axes[axis_idx][-1]))
-		return _interp_scalar(V, grid, coords_shift)
-
-	Vp_vx_plus = shift_and_interp(2, +1)
-	Vp_vx_minus = shift_and_interp(2, -1)
-	Vp_vy_plus = shift_and_interp(3, +1)
-	Vp_vy_minus = shift_and_interp(3, -1)
-	grad_vx = (Vp_vx_plus - Vp_vx_minus) / dvx
-	grad_vy = (Vp_vy_plus - Vp_vy_minus) / dvy
-
-	return V_interp, grad_vx, grad_vy
+	def central_diff(axis_idx: int, h: float):
+		coords_plus = coords.copy(); coords_minus = coords.copy()
+		coords_plus[axis_idx] = float(np.clip(coords_plus[axis_idx] + 0.5 * h, grid.axes[axis_idx][0], grid.axes[axis_idx][-1]))
+		coords_minus[axis_idx] = float(np.clip(coords_minus[axis_idx] - 0.5 * h, grid.axes[axis_idx][0], grid.axes[axis_idx][-1]))
+		Vp = _interp_scalar(V, grid, coords_plus)
+		Vm = _interp_scalar(V, grid, coords_minus)
+		return (Vp - Vm) / h
+	V_here = _interp_scalar(V, grid, coords)
+	grx = central_diff(0, grid.dr[0])
+	gry = central_diff(1, grid.dr[1])
+	gvx = central_diff(2, grid.dr[2])
+	gvy = central_diff(3, grid.dr[3])
+	return V_here, grx, gry, gvx, gvy
 
 
 def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
@@ -80,7 +46,7 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 	return V_interp
 
 
-def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
+def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None, policy_bias_evader_toward_position: float = 0.0, policy_bias_evader_away_from_r: float = 0.2) -> dict:
 	# Initialize relative state and absolute pursuer/evader states
 	state = state0.astype(float).copy()
 	if p0 is None:
@@ -107,9 +73,10 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 	for k in range(steps):
 		# Build relative state used for feedback
 		state = np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)
-		_, gvx, gvy = _interp_central_gradients(V, grid, state)
-		# Feedback controls
-		ap, ae = optimal_controls_from_gradient(gvx, gvy, a_p_max, a_e_max)
+		_, grx, gry, gvx, gvy = _interp_gradients(V, grid, state)
+		# Feedback controls: pass relative position so evader can bias away from pursuer
+		r_x, r_y = state[0], state[1]
+		ap, ae = optimal_controls_from_gradient(gvx, gvy, a_p_max, a_e_max, r_x=r_x, r_y=r_y, bias_evader_away_from_r=policy_bias_evader_away_from_r)
 		ap = ap.reshape(2)
 		ae = ae.reshape(2)
 		# Absolute dynamics for pursuer and evader
