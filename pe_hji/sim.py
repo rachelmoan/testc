@@ -80,7 +80,7 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 	return V_interp
 
 
-def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None) -> dict:
+def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None, v_p_bounds=None, v_e_bounds=None) -> dict:
 	# Initialize relative state and absolute pursuer/evader states
 	state = state0.astype(float).copy()
 	if p0 is None:
@@ -91,46 +91,54 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 		e_state = np.array([state[0], state[1], state[2], state[3]], dtype=float)
 	else:
 		e_state = np.array(e0, dtype=float).copy()
+	# Clip initial velocities if bounds provided
+	if v_p_bounds is not None:
+		p_state[2] = float(np.clip(p_state[2], v_p_bounds[0], v_p_bounds[1]))
+		p_state[3] = float(np.clip(p_state[3], v_p_bounds[0], v_p_bounds[1]))
+	if v_e_bounds is not None:
+		e_state[2] = float(np.clip(e_state[2], v_e_bounds[0], v_e_bounds[1]))
+		e_state[3] = float(np.clip(e_state[3], v_e_bounds[0], v_e_bounds[1]))
 
-	traj_rel = [state.copy()]
+	traj_rel = [np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)]
 	traj_p = [p_state.copy()]
 	traj_e = [e_state.copy()]
 	outcome = None
 	T = 0.0
 	for k in range(steps):
+		# Build relative state used for feedback
+		state = np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)
 		_, gvx, gvy = _interp_central_gradients(V, grid, state)
 		# Feedback controls
 		ap, ae = optimal_controls_from_gradient(gvx, gvy, a_p_max, a_e_max)
 		ap = ap.reshape(2)
 		ae = ae.reshape(2)
-		# Relative dynamics f(x) = [v_rel, a_e - a_p]
-		def f_rel(x):
-			return np.array([x[2], x[3], ae[0] - ap[0], ae[1] - ap[1]], dtype=float)
 		# Absolute dynamics for pursuer and evader
 		def f_p(x):
 			return np.array([x[2], x[3], ap[0], ap[1]], dtype=float)
 		def f_e(x):
 			return np.array([x[2], x[3], ae[0], ae[1]], dtype=float)
 		# RK4 with frozen controls over step
-		k1r = f_rel(state)
 		k1p = f_p(p_state)
 		k1e = f_e(e_state)
-		k2r = f_rel(state + 0.5 * dt * k1r)
 		k2p = f_p(p_state + 0.5 * dt * k1p)
 		k2e = f_e(e_state + 0.5 * dt * k1e)
-		k3r = f_rel(state + 0.5 * dt * k2r)
 		k3p = f_p(p_state + 0.5 * dt * k2p)
 		k3e = f_e(e_state + 0.5 * dt * k2e)
-		k4r = f_rel(state + dt * k3r)
 		k4p = f_p(p_state + dt * k3p)
 		k4e = f_e(e_state + dt * k3e)
-		state = state + (dt / 6.0) * (k1r + 2*k2r + 2*k3r + k4r)
 		p_state = p_state + (dt / 6.0) * (k1p + 2*k2p + 2*k3p + k4p)
 		e_state = e_state + (dt / 6.0) * (k1e + 2*k2e + 2*k3e + k4e)
+		# Enforce per-agent velocity bounds if provided
+		if v_p_bounds is not None:
+			p_state[2] = float(np.clip(p_state[2], v_p_bounds[0], v_p_bounds[1]))
+			p_state[3] = float(np.clip(p_state[3], v_p_bounds[0], v_p_bounds[1]))
+		if v_e_bounds is not None:
+			e_state[2] = float(np.clip(e_state[2], v_e_bounds[0], v_e_bounds[1]))
+			e_state[3] = float(np.clip(e_state[3], v_e_bounds[0], v_e_bounds[1]))
+
 		T += dt
-		# Synchronize relative from absolute to reduce drift
-		state[0:2] = e_state[0:2] - p_state[0:2]
-		state[2:4] = e_state[2:4] - p_state[2:4]
+		# Build new relative state
+		state = np.array([e_state[0]-p_state[0], e_state[1]-p_state[1], e_state[2]-p_state[2], e_state[3]-p_state[3]], dtype=float)
 
 		traj_rel.append(state.copy())
 		traj_p.append(p_state.copy())

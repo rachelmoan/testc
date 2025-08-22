@@ -3,23 +3,29 @@ from pe_hji import Grid4D, solve_hji_lax_friedrichs, simulate_closed_loop, plot_
 
 
 def main():
+	# Agent velocity bounds
+	v_p_bounds = (-1.5, 1.5)
+	v_e_bounds = (-0.8, 0.8)
+	# Relative velocity bounds for grid should cover possible differences
+	rv_bounds = (v_e_bounds[0]-v_p_bounds[1], v_e_bounds[1]-v_p_bounds[0])
+
 	# Problem setup
 	r_bounds = (-5.0, 5.0)
-	v_bounds = (-2.0, 2.0)
 	n_r = 21
 	n_v = 21
-	grid = Grid4D(r_bounds=r_bounds, v_bounds=v_bounds, n_r=n_r, n_v=n_v)
+	grid = Grid4D(r_bounds=r_bounds, v_bounds=rv_bounds, n_r=n_r, n_v=n_v)
 
 	capture_radius = 0.5
 	a_p_max = 1.0
 	a_e_max = 0.8
+	print(f"Using v_p_bounds={v_p_bounds}, v_e_bounds={v_e_bounds}, relative v bounds={rv_bounds}")
 
 	# Solve HJI for a small horizon for speed
 	V = solve_hji_lax_friedrichs(grid, capture_radius=capture_radius, a_p_max=a_p_max, a_e_max=a_e_max, t_max=0.8, dt=0.05, verbose=True)
 
 	# Simulate closed-loop from a sample initial relative state [rx, ry, rvx, rvy]
 	state0 = np.array([3.0, 2.0, -0.5, 0.2])
-	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0)
+	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0, v_p_bounds=v_p_bounds, v_e_bounds=v_e_bounds)
 
 	traj = sim["traj"]
 	print(f"Outcome: {sim['outcome']} at T={sim['T']:.2f}s, steps={sim['steps']}")
