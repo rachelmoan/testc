@@ -80,7 +80,7 @@ def _interp_scalar(V: np.ndarray, grid: Grid4D, coords):
 	return V_interp
 
 
-def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None) -> dict:
+def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None, t_max=None) -> dict:
 	# Initialize relative state and absolute pursuer/evader states
 	state = state0.astype(float).copy()
 	if p0 is None:
@@ -95,6 +95,8 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 	traj_rel = [state.copy()]
 	traj_p = [p_state.copy()]
 	traj_e = [e_state.copy()]
+	outcome = None
+	T = 0.0
 	for k in range(steps):
 		_, gvx, gvy = _interp_central_gradients(V, grid, state)
 		# Feedback controls
@@ -125,6 +127,7 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 		state = state + (dt / 6.0) * (k1r + 2*k2r + 2*k3r + k4r)
 		p_state = p_state + (dt / 6.0) * (k1p + 2*k2p + 2*k3p + k4p)
 		e_state = e_state + (dt / 6.0) * (k1e + 2*k2e + 2*k3e + k4e)
+		T += dt
 		# Synchronize relative from absolute to reduce drift
 		state[0:2] = e_state[0:2] - p_state[0:2]
 		state[2:4] = e_state[2:4] - p_state[2:4]
@@ -134,5 +137,13 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 		traj_e.append(e_state.copy())
 		# stop if captured
 		if np.sqrt(state[0]*state[0] + state[1]*state[1]) <= capture_radius:
+			outcome = 'pursuer_captures'
 			break
-	return {"traj": np.array(traj_rel), "traj_rel": np.array(traj_rel), "traj_p": np.array(traj_p), "traj_e": np.array(traj_e), "steps": len(traj_rel)-1}
+		# stop if time exceeded
+		if t_max is not None and T >= t_max:
+			outcome = 'evader_escapes'
+			break
+	# If no outcome set, it's max steps without t_max -> treat as horizon reached
+	if outcome is None:
+		outcome = 'evader_escapes'
+	return {"traj": np.array(traj_rel), "traj_rel": np.array(traj_rel), "traj_p": np.array(traj_p), "traj_e": np.array(traj_e), "steps": len(traj_rel)-1, "T": T, "outcome": outcome}

@@ -19,10 +19,11 @@ def main():
 
 	# Simulate closed-loop from a sample initial relative state [rx, ry, rvx, rvy]
 	state0 = np.array([3.0, 2.0, -0.5, 0.2])
-	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=200, capture_radius=capture_radius)
+	sim = simulate_closed_loop(V, grid, state0, a_p_max=a_p_max, a_e_max=a_e_max, dt=0.05, steps=2000, capture_radius=capture_radius, t_max=10.0)
 
 	traj = sim["traj"]
-	print(f"Simulated {sim['steps']} steps. Final r = ({traj[-1,0]:.2f}, {traj[-1,1]:.2f}), |r| = {np.linalg.norm(traj[-1,:2]):.3f}")
+	print(f"Outcome: {sim['outcome']} at T={sim['T']:.2f}s, steps={sim['steps']}")
+	print(f"Final r = ({traj[-1,0]:.2f}, {traj[-1,1]:.2f}), |r| = {np.linalg.norm(traj[-1,:2]):.3f}")
 	print("First 3 states:")
 	print(traj[:3])
 
