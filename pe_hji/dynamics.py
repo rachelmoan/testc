@@ -22,3 +22,22 @@ def bounds_hamiltonian_partials(vx_axis: np.ndarray, vy_axis: np.ndarray, a_p_ma
 	alpha3 = abs(a_e_max - a_p_max)
 	alpha4 = abs(a_e_max - a_p_max)
 	return alpha1, alpha2, alpha3, alpha4
+
+
+# 3D versions
+def stackelberg_hamiltonian_3d(rvx: np.ndarray, rvy: np.ndarray, rvz: np.ndarray, px: np.ndarray, py: np.ndarray, pz: np.ndarray, pvx: np.ndarray, pvy: np.ndarray, pvz: np.ndarray, a_p_max: float, a_e_max: float) -> np.ndarray:
+	# H(x,p) = p_r · v_rel + (a_e_max - a_p_max) * ||p_v||
+	return (
+		px * rvx + py * rvy + pz * rvz
+		+ (a_e_max - a_p_max) * np.sqrt(pvx * pvx + pvy * pvy + pvz * pvz + 1e-16)
+	)
+
+
+def bounds_hamiltonian_partials_3d(vx_axis: np.ndarray, vy_axis: np.ndarray, vz_axis: np.ndarray, a_p_max: float, a_e_max: float) -> Tuple[float, float, float, float, float, float]:
+	alpha1 = float(np.max(np.abs(vx_axis)))
+	alpha2 = float(np.max(np.abs(vy_axis)))
+	alpha3 = float(np.max(np.abs(vz_axis)))
+	alpha4 = abs(a_e_max - a_p_max)
+	alpha5 = abs(a_e_max - a_p_max)
+	alpha6 = abs(a_e_max - a_p_max)
+	return alpha1, alpha2, alpha3, alpha4, alpha5, alpha6

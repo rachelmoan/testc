@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Tuple
-from .grid import Grid4D
-from .controls import optimal_controls_from_gradient
+from .grid import Grid4D, Grid6D
+from .controls import optimal_controls_from_gradient, optimal_controls_from_gradient_3d
 
 
 def _interp_central_gradients(V: np.ndarray, grid: Grid4D, state: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
@@ -134,5 +134,106 @@ def simulate_closed_loop(V: np.ndarray, grid: Grid4D, state0: np.ndarray, a_p_ma
 		traj_e.append(e_state.copy())
 		# stop if captured
 		if np.sqrt(state[0]*state[0] + state[1]*state[1]) <= capture_radius:
+			break
+	return {"traj": np.array(traj_rel), "traj_rel": np.array(traj_rel), "traj_p": np.array(traj_p), "traj_e": np.array(traj_e), "steps": len(traj_rel)-1}
+
+
+def _interp_scalar_6d(V: np.ndarray, grid: Grid6D, coords):
+	rx, ry, rz, rvx, rvy, rvz = grid.axes
+	idxs = []
+	ws = []
+	for axis_vals, val in zip((rx, ry, rz, rvx, rvy, rvz), coords):
+		i = int(np.clip(np.searchsorted(axis_vals, val) - 1, 0, len(axis_vals) - 2))
+		idxs.append(i)
+		w = (val - axis_vals[i]) / (axis_vals[i+1] - axis_vals[i])
+		ws.append(w)
+	V_interp = 0.0
+	wx, wy, wz, wvx, wvy, wvz = ws
+	for b in range(64):
+		ix = idxs[0] + ((b >> 0) & 1)
+		iy = idxs[1] + ((b >> 1) & 1)
+		iz = idxs[2] + ((b >> 2) & 1)
+		ivx = idxs[3] + ((b >> 3) & 1)
+		ivy = idxs[4] + ((b >> 4) & 1)
+		ivz = idxs[5] + ((b >> 5) & 1)
+		cx = wx if (b & 1) else (1 - wx)
+		cy = wy if (b & 2) else (1 - wy)
+		cz = wz if (b & 4) else (1 - wz)
+		cvx = wvx if (b & 8) else (1 - wvx)
+		cvy = wvy if (b & 16) else (1 - wvy)
+		cvz = wvz if (b & 32) else (1 - wvz)
+		V_interp += V[ix, iy, iz, ivx, ivy, ivz] * cx * cy * cz * cvx * cvy * cvz
+	return V_interp
+
+
+def _interp_central_gradients_6d(V: np.ndarray, grid: Grid6D, state: np.ndarray) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
+	coords = [state[0], state[1], state[2], state[3], state[4], state[5]]
+	V_interp = _interp_scalar_6d(V, grid, coords)
+	dvx = grid.dr[3]
+	dvy = grid.dr[4]
+	dvz = grid.dr[5]
+	def shift_interp(axis_idx: int, sign: int):
+		coords_shift = coords.copy()
+		coords_shift[axis_idx] += sign * (grid.dr[axis_idx] * 0.5)
+		coords_shift[axis_idx] = float(np.clip(coords_shift[axis_idx], grid.axes[axis_idx][0], grid.axes[axis_idx][-1]))
+		return _interp_scalar_6d(V, grid, coords_shift)
+	Vp_vx_plus = shift_interp(3, +1)
+	Vp_vx_minus = shift_interp(3, -1)
+	Vp_vy_plus = shift_interp(4, +1)
+	Vp_vy_minus = shift_interp(4, -1)
+	Vp_vz_plus = shift_interp(5, +1)
+	Vp_vz_minus = shift_interp(5, -1)
+	grad_vx = (Vp_vx_plus - Vp_vx_minus) / dvx
+	grad_vy = (Vp_vy_plus - Vp_vy_minus) / dvy
+	grad_vz = (Vp_vz_plus - Vp_vz_minus) / dvz
+	return V_interp, grad_vx, grad_vy, grad_vz
+
+
+def simulate_closed_loop_6d(V: np.ndarray, grid: Grid6D, state0: np.ndarray, a_p_max: float, a_e_max: float, dt: float, steps: int, capture_radius: float, p0=None, e0=None) -> dict:
+	state = state0.astype(float).copy()
+	if p0 is None:
+		p_state = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
+	else:
+		p_state = np.array(p0, dtype=float).copy()
+	if e0 is None:
+		e_state = np.array([state[0], state[1], state[2], state[3], state[4], state[5]], dtype=float)
+	else:
+		e_state = np.array(e0, dtype=float).copy()
+
+	traj_rel = [state.copy()]
+	traj_p = [p_state.copy()]
+	traj_e = [e_state.copy()]
+	for k in range(steps):
+		_, gvx, gvy, gvz = _interp_central_gradients_6d(V, grid, state)
+		ap, ae = optimal_controls_from_gradient_3d(gvx, gvy, gvz, a_p_max, a_e_max)
+		ap = ap.reshape(3)
+		ae = ae.reshape(3)
+		def f_rel(x):
+			return np.array([x[3], x[4], x[5], ae[0] - ap[0], ae[1] - ap[1], ae[2] - ap[2]], dtype=float)
+		def f_p(x):
+			return np.array([x[3], x[4], x[5], ap[0], ap[1], ap[2]], dtype=float)
+		def f_e(x):
+			return np.array([x[3], x[4], x[5], ae[0], ae[1], ae[2]], dtype=float)
+		k1r = f_rel(state)
+		k1p = f_p(p_state)
+		k1e = f_e(e_state)
+		k2r = f_rel(state + 0.5 * dt * k1r)
+		k2p = f_p(p_state + 0.5 * dt * k1p)
+		k2e = f_e(e_state + 0.5 * dt * k1e)
+		k3r = f_rel(state + 0.5 * dt * k2r)
+		k3p = f_p(p_state + 0.5 * dt * k2p)
+		k3e = f_e(e_state + 0.5 * dt * k2e)
+		k4r = f_rel(state + dt * k3r)
+		k4p = f_p(p_state + dt * k3p)
+		k4e = f_e(e_state + dt * k3e)
+		state = state + (dt / 6.0) * (k1r + 2*k2r + 2*k3r + k4r)
+		p_state = p_state + (dt / 6.0) * (k1p + 2*k2p + 2*k3p + k4p)
+		e_state = e_state + (dt / 6.0) * (k1e + 2*k2e + 2*k3e + k4e)
+		state[0:3] = e_state[0:3] - p_state[0:3]
+		state[3:6] = e_state[3:6] - p_state[3:6]
+		traj_rel.append(state.copy())
+		traj_p.append(p_state.copy())
+		traj_e.append(e_state.copy())
+		if np.sqrt(state[0]*state[0] + state[1]*state[1] + state[2]*state[2]) <= capture_radius:
 			break
 	return {"traj": np.array(traj_rel), "traj_rel": np.array(traj_rel), "traj_p": np.array(traj_p), "traj_e": np.array(traj_e), "steps": len(traj_rel)-1}

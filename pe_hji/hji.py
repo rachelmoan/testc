@@ -1,6 +1,6 @@
 import numpy as np
-from .grid import Grid4D
-from .dynamics import stackelberg_hamiltonian, bounds_hamiltonian_partials
+from .grid import Grid4D, Grid6D
+from .dynamics import stackelberg_hamiltonian, bounds_hamiltonian_partials, stackelberg_hamiltonian_3d, bounds_hamiltonian_partials_3d
 
 
 def _central_gradient(Dplus, Dminus):
@@ -42,5 +42,40 @@ def solve_hji_lax_friedrichs(grid: Grid4D, capture_radius: float, a_p_max: float
 			minV = float(np.min(V))
 			maxV = float(np.max(V))
 			print(f"HJI step {k+1}/{n_steps}: V in [{minV:.3f}, {maxV:.3f}]")
+
+	return V
+
+
+def solve_hji_lax_friedrichs_6d(grid: Grid6D, capture_radius: float, a_p_max: float, a_e_max: float, t_max: float, dt: float, V0: np.ndarray = None, verbose: bool = True):
+	# Initialize value function with signed distance to target set over position components
+	if V0 is None:
+		V = grid.signed_distance_capture(capture_radius)
+	else:
+		V = V0.copy()
+
+	# Precompute alpha bounds for LF dissipation
+	alpha1, alpha2, alpha3, alpha4, alpha5, alpha6 = bounds_hamiltonian_partials_3d(grid.axes[3], grid.axes[4], grid.axes[5], a_p_max, a_e_max)
+
+	n_steps = int(np.ceil(t_max / dt))
+	for k in range(n_steps):
+		Dplus, Dminus = grid.finite_differences(V)
+		(grx, gry, grz, grvx, grvy, grvz), (dissx, dissy, dissz, dissvx, dissvy, dissvz) = _central_gradient(Dplus, Dminus)
+
+		# Hamiltonian at central gradients
+		rx, ry, rz, rvx, rvy, rvz = grid.mesh()
+		H = stackelberg_hamiltonian_3d(rvx, rvy, rvz, grx, gry, grz, grvx, grvy, grvz, a_p_max, a_e_max)
+
+		# LF dissipation term
+		H -= (
+			alpha1 * dissx + alpha2 * dissy + alpha3 * dissz
+			+ alpha4 * dissvx + alpha5 * dissvy + alpha6 * dissvz
+		)
+
+		V = V - dt * H
+
+		if verbose and (k % max(1, n_steps // 10) == 0 or k == n_steps - 1):
+			minV = float(np.min(V))
+			maxV = float(np.max(V))
+			print(f"HJI6D step {k+1}/{n_steps}: V in [{minV:.3f}, {maxV:.3f}]")
 
 	return V
